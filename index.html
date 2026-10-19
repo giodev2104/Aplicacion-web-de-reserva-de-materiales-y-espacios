@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alquila · Reserva de materiales y espacios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { ink: '#1E2A28', paper: '#F7F5F0', moss: '#3F5E4E', brass: '#A9834A', sand: '#E9E4D8', alert: '#9C3D2E' },
+        fontFamily: { serif: ['Newsreader', 'Georgia', 'serif'], sans: ['Manrope', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: 'Manrope', system-ui, sans-serif; background: #F7F5F0; color: #1E2A28; }
+  :focus-visible { outline: 2px solid #3F5E4E; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="min-h-screen antialiased">
+
+<header class="sticky top-0 z-40 border-b border-ink/10 bg-paper/95 backdrop-blur">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+    <span class="font-serif text-2xl font-semibold">Alquila<span class="text-brass">.</span></span>
+    <span class="text-sm text-ink/60">Demo · sin cobros reales</span>
+  </div>
+</header>
+
+<main class="mx-auto grid max-w-7xl gap-8 px-4 py-8 lg:grid-cols-[1fr_360px]">
+
+  <section class="lg:col-span-1">
+    <div class="max-w-2xl">
+      <h1 class="font-serif text-4xl leading-tight sm:text-5xl">Lo que necesitas, por las horas que lo necesitas.</h1>
+      <p class="mt-3 text-ink/70">Herramientas, estudios, salas, vehículos y vestuario. El precio y la fianza se calculan al momento.</p>
+    </div>
+
+    <nav id="filters" class="mt-8 flex flex-wrap gap-2" aria-label="Filtrar por categoría"></nav>
+
+    <div id="catalog" class="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"></div>
+  </section>
+
+  <aside class="h-fit rounded-2xl border border-ink/10 bg-white p-5 lg:sticky lg:top-24" aria-label="Configurar reserva">
+    <p id="selCat" class="text-sm text-ink/60"></p>
+    <h2 id="selName" class="font-serif text-2xl leading-tight">Elige un artículo</h2>
+
+    <form id="pform" class="mt-5 grid grid-cols-2 gap-3 text-sm" onsubmit="return false">
+      <label class="col-span-2 font-medium">Tipo de alquiler
+        <select id="unit" class="mt-1 w-full rounded-lg border border-ink/20 bg-paper px-3 py-2">
+          <option value="dia">Por días</option>
+          <option value="hora">Por horas</option>
+        </select>
+      </label>
+      <label class="col-span-2 font-medium">Inicio
+        <input id="start" type="datetime-local" class="mt-1 w-full rounded-lg border border-ink/20 bg-paper px-3 py-2">
+      </label>
+      <label class="font-medium"><span id="durLbl">Días</span>
+        <input id="dur" type="number" min="1" max="365" value="1" class="mt-1 w-full rounded-lg border border-ink/20 bg-paper px-3 py-2">
+      </label>
+      <label class="font-medium">Unidades
+        <select id="qty" class="mt-1 w-full rounded-lg border border-ink/20 bg-paper px-3 py-2"></select>
+      </label>
+    </form>
+
+    <div id="breakdown" class="mt-5 space-y-2 border-t border-ink/10 pt-4 text-sm"></div>
+
+    <button id="reservar" disabled class="mt-5 w-full rounded-full bg-moss py-3 font-semibold text-paper hover:bg-ink disabled:cursor-not-allowed disabled:bg-ink/15 disabled:text-ink/50">Reservar ahora</button>
+    <p class="mt-3 text-xs text-ink/60">Cancelación gratuita hasta 48 h antes del inicio. La fianza se devuelve al cerrar el alquiler.</p>
+  </aside>
+</main>
+
+<div id="modal" class="fixed inset-0 z-50 hidden items-end justify-center bg-ink/60 sm:items-center sm:p-4">
+  <div role="dialog" aria-modal="true" aria-labelledby="mt" class="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-paper p-6 sm:max-w-lg sm:rounded-2xl">
+    <div id="mbody"></div>
+  </div>
+</div>
+
+<script>
+const ITEMS = [
+  { id: 1, cat: 'Herramientas', nombre: 'Taladro percutor profesional', icon: '🔩', specs: ['800 W', 'Batería 18 V', 'Set de brocas'], hora: 4, dia: 18, fianza: 40, stock: 3, estado: 'disponible' },
+  { id: 2, cat: 'Herramientas', nombre: 'Hidrolavadora 150 bar', icon: '💧', specs: ['150 bar', '6 L/min', 'Lanza turbo'], hora: 6, dia: 25, fianza: 60, stock: 1, estado: 'ultimas' },
+  { id: 3, cat: 'Estudios', nombre: 'Estudio fotográfico de luz natural', icon: '📷', specs: ['60 m²', 'Fondo infinito', 'Ventanal norte'], hora: 15, dia: 90, fianza: 150, stock: 1, estado: 'disponible' },
+  { id: 4, cat: 'Estudios', nombre: 'Cabina de grabación', icon: '🎙️', specs: ['12 m²', 'Tratamiento acústico', 'Interfaz incluida'], hora: 22, dia: 140, fianza: 250, stock: 1, estado: 'reservado' },
+  { id: 5, cat: 'Salas', nombre: 'Sala de reuniones 12 personas', icon: '🏢', specs: ['Pantalla 75"', 'Videoconferencia', 'Pizarra'], hora: 12, dia: 70, fianza: 80, stock: 2, estado: 'disponible' },
+  { id: 6, cat: 'Salas', nombre: 'Sala de danza con espejos', icon: '🩰', specs: ['80 m²', 'Suelo flotante', 'Barra'], hora: 18, dia: 110, fianza: 120, stock: 1, estado: 'ultimas' },
+  { id: 7, cat: 'Vehículos', nombre: 'Furgoneta 9 plazas', icon: '🚐', specs: ['Automática', 'Diésel', 'Carnet B'], hora: 14, dia: 85, fianza: 300, stock: 2, estado: 'disponible' },
+  { id: 8, cat: 'Vehículos', nombre: 'Bicicleta eléctrica urbana', icon: '🚲', specs: ['60 km autonomía', 'Casco incluido', 'Talla M'], hora: 5, dia: 30, fianza: 50, stock: 4, estado: 'disponible' },
+  { id: 9, cat: 'Vestuario', nombre: 'Traje de época, siglo XIX', icon: '🎭', specs: ['Talla M', 'Incluye complementos', 'Limpieza en seco'], hora: 4, dia: 20, fianza: 60, stock: 5, estado: 'disponible' },
+  { id: 10, cat: 'Vestuario', nombre: 'Kit de vestuario de gala', icon: '👗', specs: ['Vestido y accesorios', 'Talla S a L', 'Entrega a domicilio'], hora: 3, dia: 15, fianza: 40, stock: 2, estado: 'ultimas' }
+];
+
+const CATS = ['Todos', 'Herramientas', 'Estudios', 'Salas', 'Vehículos', 'Vestuario'];
+const BADGE = {
+  disponible: ['Disponible', 'bg-moss text-paper'],
+  ultimas: ['Últimas unidades', 'bg-brass text-paper'],
+  reservado: ['Reservado', 'bg-alert text-paper']
+};
+
+const state = { cat: 'Todos', sel: null, unit: 'dia', n: 1, qty: 1, start: null, step: 1, client: {}, code: '', done: false };
+
+const $ = s => document.querySelector(s);
+const eur = n => n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+const fmt = d => d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const toLocalInput = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const unitLabel = (u, n) => u === 'hora' ? (n === 1 ? 'hora' : 'horas') : (n === 1 ? 'día' : 'días');
+
+function calc() {
+  const i = state.sel;
+  if (!i || !state.start || isNaN(state.start) || state.start < new Date()) return null;
+  const n = Math.max(1, state.n | 0), q = state.qty;
+  const precio = state.unit === 'hora' ? i.hora : i.dia;
+  const sub = precio * n * q;
+  const umbral = state.unit === 'hora' ? 8 : 3;
+  const pct = n >= umbral ? 0.10 : 0;
+  const desc = Math.round(sub * pct);
+  const servicio = Math.round((sub - desc) * 0.05);
+  const pagar = sub - desc + servicio;
+  const fianza = i.fianza * q;
+  const end = new Date(state.start);
+  if (state.unit === 'hora') end.setHours(end.getHours() + n); else end.setDate(end.getDate() + n);
+  return { precio, n, q, sub, pct, desc, servicio, pagar, fianza, total: pagar + fianza, end };
+}
+
+function renderFilters() {
+  $('#filters').innerHTML = CATS.map(c => `
+    <button data-cat="${c}" aria-pressed="${c === state.cat}"
+      class="rounded-full border px-4 py-1.5 text-sm transition ${c === state.cat ? 'border-ink bg-ink text-paper' : 'border-ink/20 hover:border-ink'}">${c}</button>`).join('');
+}
+
+function renderCatalog() {
+  const list = ITEMS.filter(i => state.cat === 'Todos' || i.cat === state.cat);
+  $('#catalog').innerHTML = list.map(i => {
+    const [label, cls] = BADGE[i.estado];
+    const off = i.estado === 'reservado';
+    const active = state.sel?.id === i.id;
+    const btnTxt = off ? 'No disponible' : active ? 'Seleccionado' : 'Seleccionar';
+    return `
+    <article class="flex flex-col overflow-hidden rounded-2xl border bg-white ${active ? 'border-moss ring-2 ring-moss/30' : 'border-ink/10'}">
+      <div class="relative grid h-36 place-items-center bg-sand text-6xl" aria-hidden="true">
+        ${i.icon}
+        <span class="absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${cls}">${label}</span>
+      </div>
+      <div class="flex flex-1 flex-col p-5">
+        <p class="text-sm text-ink/60">${i.cat}</p>
+        <h3 class="mt-0.5 font-serif text-xl leading-tight">${i.nombre}</h3>
+        <p class="mt-2 text-sm text-ink/70">${i.specs.join(', ')}</p>
+        <div class="mt-auto pt-4">
+          <p><span class="font-serif text-2xl">${eur(i.dia)}</span> <span class="text-sm text-ink/60">por día</span></p>
+          <p class="text-xs text-ink/60">${eur(i.hora)} por hora · Fianza ${eur(i.fianza)}</p>
+        </div>
+        <button data-sel="${i.id}" ${off ? 'disabled' : ''}
+          class="mt-4 rounded-full py-2.5 text-sm font-semibold transition ${off ? 'bg-ink/15 text-ink/50 cursor-not-allowed' : active ? 'bg-ink text-paper' : 'bg-moss text-paper hover:bg-ink'}">${btnTxt}</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function selectItem(id) {
+  state.sel = ITEMS.find(i => i.id === id);
+  state.qty = 1;
+  $('#qty').innerHTML = Array.from({ length: state.sel.stock }, (_, k) => `<option value="${k + 1}">${k + 1}</option>`).join('');
+  renderCatalog();
+  renderPanel();
+}
+
+function row(label, value, strong = false) {
+  return `<div class="flex justify-between gap-4 ${strong ? 'pt-2 text-base font-semibold text-ink' : 'text-ink/70'}"><span>${label}</span><span class="tabular-nums">${value}</span></div>`;
+}
+
+function renderPanel() {
+  const i = state.sel, c = calc(), btn = $('#reservar');
+  $('#selName').textContent = i ? i.nombre : 'Elige un artículo';
+  $('#selCat').textContent = i ? i.cat : 'Catálogo';
+  $('#durLbl').textContent = state.unit === 'hora' ? 'Horas' : 'Días';
+
+  if (!i) {
+    $('#breakdown').innerHTML = '<p class="text-ink/60">Selecciona un artículo del catálogo para ver el precio.</p>';
+  } else if (!state.start || state.start < new Date()) {
+    $('#breakdown').innerHTML = '<p class="text-ink/60">Indica una fecha de inicio futura.</p>';
+  } else {
+    $('#breakdown').innerHTML = `
+      ${row(`Precio por ${state.unit === 'hora' ? 'hora' : 'día'}`, eur(c.precio))}
+      ${row('Duración', `${c.n} ${unitLabel(state.unit, c.n)} × ${c.q} ud.`)}
+      ${row('Subtotal', eur(c.sub))}
+      ${c.pct ? row(`Descuento larga duración (${c.pct * 100}%)`, `−${eur(c.desc)}`) : ''}
+      ${row('Tasa de servicio (5%)', eur(c.servicio))}
+      ${row('Total a pagar ahora', eur(c.pagar), true)}
+      ${row('Fianza reembolsable', eur(c.fianza))}
+      <p class="pt-2 text-xs text-ink/60">Fin de la reserva: ${fmt(c.end)}</p>`;
+  }
+
+  const ok = c && i.estado !== 'reservado';
+  btn.disabled = !ok;
+}
+
+function openModal(step) {
+  state.step = step;
+  renderModal();
+  $('#modal').classList.remove('hidden');
+  $('#modal').classList.add('flex');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  $('#modal').classList.add('hidden');
+  $('#modal').classList.remove('flex');
+  document.body.style.overflow = '';
+  if (state.done) {
+    state.done = false;
+    state.sel = null;
+    state.client = {};
+    $('#start').value = '';
+    $('#dur').value = 1;
+    renderCatalog();
+    renderPanel();
+  }
+}
+
+const header = (title, showBack) => `
+  <div class="mb-5 flex items-start justify-between gap-4">
+    <div class="flex items-center gap-2">
+      ${showBack ? '<button data-back class="rounded-full px-2 py-1 text-sm text-ink/70 hover:bg-sand">← Volver</button>' : ''}
+      <h2 id="mt" class="font-serif text-2xl leading-tight">${title}</h2>
+    </div>
+    <button data-close class="rounded-full px-2 text-2xl leading-none hover:bg-sand" aria-label="Cerrar">×</button>
+  </div>`;
+
+const field = (label, name, type = 'text', extra = '', value = '') => `
+  <label class="text-sm font-medium">${label}
+    <input name="${name}" type="${type}" value="${esc(value)}" ${extra}
+      class="mt-1 w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm font-normal focus:border-moss focus:outline-none">
+  </label>`;
+
+function renderModal() {
+  const i = state.sel, c = calc(), b = $('#mbody');
+  if (!i || !c) { closeModal(); return; }
+  const cl = state.client;
+
+  if (state.step === 1) {
+    b.innerHTML = header('Resumen y datos', false) + `
+      <div class="rounded-xl bg-sand/60 p-4 text-sm">
+        <p class="font-semibold">${esc(i.nombre)} × ${c.q}</p>
+        <p class="text-ink/70">Del ${fmt(state.start)} al ${fmt(c.end)}</p>
+      </div>
+      <div class="mt-4 space-y-2 text-sm">
+        ${row('Subtotal', eur(c.sub))}
+        ${c.pct ? row('Descuento', `−${eur(c.desc)}`) : ''}
+        ${row('Tasa de servicio', eur(c.servicio))}
+        ${row('Total a pagar ahora', eur(c.pagar), true)}
+        ${row('Fianza reembolsable', eur(c.fianza))}
+      </div>
+      <form id="cf" class="mt-6 grid gap-3 sm:grid-cols-2">
+        ${field('Nombre completo', 'nombre', 'text', 'required autocomplete="name"', cl.nombre || '')}
+        ${field('Documento (DNI/NIE)', 'dni', 'text', 'required pattern="[0-9XYZxyz][0-9]{7}[A-Za-z]" placeholder="12345678Z"', cl.dni || '')}
+        ${field('Correo electrónico', 'email', 'email', 'required autocomplete="email"', cl.email || '')}
+        ${field('Teléfono', 'tel', 'tel', 'required pattern="[0-9 +]{9,}" autocomplete="tel"', cl.tel || '')}
+        <button type="submit" class="mt-2 rounded-full bg-moss py-3 font-semibold text-paper hover:bg-ink sm:col-span-2">Continuar al pago</button>
+      </form>`;
+  }
+
+  if (state.step === 2) {
+    b.innerHTML = header('Pago', true) + `
+      <p class="mb-4 text-sm text-ink/70">Pagarás <span class="font-semibold text-ink">${eur(c.total)}</span> (incluye ${eur(c.fianza)} de fianza reembolsable).</p>
+      <form id="pf" class="grid gap-3">
+        ${field('Número de tarjeta', 'card', 'text', 'required inputmode="numeric" pattern="[0-9 ]{16,19}" placeholder="4242 4242 4242 4242"')}
+        <div class="grid grid-cols-2 gap-3">
+          ${field('Caducidad', 'exp', 'text', 'required pattern="(0[1-9]|1[0-2])/[0-9]{2}" placeholder="12/30"')}
+          ${field('CVC', 'cvc', 'text', 'required inputmode="numeric" pattern="[0-9]{3,4}" placeholder="123"')}
+        </div>
+        <p class="rounded-lg bg-brass/15 p-3 text-xs text-ink/80">Simulación: no se realiza ningún cargo. Puedes usar cualquier número con formato válido.</p>
+        <button type="submit" class="mt-2 rounded-full bg-moss py-3 font-semibold text-paper hover:bg-ink">Pagar ${eur(c.total)}</button>
+      </form>`;
+  }
+
+  if (state.step === 3) {
+    b.innerHTML = header('Procesando', false) + `
+      <div class="flex flex-col items-center gap-4 py-10 text-center" role="status">
+        <div class="h-10 w-10 animate-spin rounded-full border-4 border-sand border-t-moss"></div>
+        <p class="text-ink/70">Procesando el pago simulado…</p>
+      </div>`;
+  }
+
+  if (state.step === 4) {
+    b.innerHTML = header('Reserva confirmada', false) + `
+      <div class="rounded-xl border border-moss/30 bg-white p-5 text-center">
+        <p class="text-sm text-ink/60">Código de reserva</p>
+        <p class="mt-1 font-serif text-3xl tracking-wide tabular-nums">${state.code}</p>
+      </div>
+      <div class="mt-5 space-y-2 text-sm">
+        <p class="font-semibold">${esc(i.nombre)} × ${c.q}</p>
+        <p class="text-ink/70">Del ${fmt(state.start)} al ${fmt(c.end)}</p>
+        ${row('Pagado', eur(c.total))}
+        <p class="pt-2 text-ink/70">Hemos enviado la confirmación a ${esc(cl.email)} (simulación). Recuerda devolver el artículo a tiempo para recuperar la fianza.</p>
+      </div>
+      <button data-close class="mt-6 w-full rounded-full bg-ink py-3 font-semibold text-paper hover:bg-moss">Volver al catálogo</button>`;
+  }
+}
+
+/* Eventos */
+$('#filters').addEventListener('click', e => {
+  const btn = e.target.closest('[data-cat]');
+  if (!btn) return;
+  state.cat = btn.dataset.cat;
+  renderFilters();
+  renderCatalog();
+});
+
+$('#catalog').addEventListener('click', e => {
+  const btn = e.target.closest('[data-sel]');
+  if (btn && !btn.disabled) selectItem(+btn.dataset.sel);
+});
+
+$('#pform').addEventListener('input', () => {
+  state.unit = $('#unit').value;
+  state.n = Math.min(365, Math.max(1, +$('#dur').value || 1));
+  state.qty = +$('#qty').value || 1;
+  state.start = $('#start').value ? new Date($('#start').value) : null;
+  renderPanel();
+});
+
+$('#reservar').addEventListener('click', () => {
+  if (!calc()) return;
+  openModal(1);
+});
+
+$('#mbody').addEventListener('click', e => {
+  if (e.target.closest('[data-close]')) closeModal();
+  if (e.target.closest('[data-back]')) openModal(state.step - 1);
+});
+
+$('#mbody').addEventListener('submit', e => {
+  e.preventDefault();
+  const form = e.target;
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+  const data = Object.fromEntries(new FormData(form));
+
+  if (form.id === 'cf') {
+    state.client = data;
+    openModal(2);
+  }
+
+  if (form.id === 'pf') {
+    openModal(3);
+    setTimeout(() => {
+      state.code = 'RES-' + Date.now().toString(36).toUpperCase().slice(-6);
+      state.done = true;
+      openModal(4);
+    }, 1600);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#modal').classList.contains('hidden') && state.step !== 3) closeModal();
+});
+
+/* Inicio: fecha mínima = próxima hora completa */
+(function init() {
+  const next = new Date();
+  next.setMinutes(0, 0, 0);
+  next.setHours(next.getHours() + 1);
+  $('#start').min = toLocalInput(new Date());
+  $('#start').value = toLocalInput(next);
+  state.start = next;
+  renderFilters();
+  renderCatalog();
+  renderPanel();
+})();
+</script>
+
+<footer class="mx-auto max-w-7xl px-4 pb-10 pt-4 text-xs text-ink/50">
+  Demostración de interfaz. Los precios, la disponibilidad y los pagos son simulados.
+</footer>
+</body>
+</html>
